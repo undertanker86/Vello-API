@@ -2,7 +2,10 @@ import ApiError from "../utils/ApiError"
 import { slugify } from "../utils/createSlug"
 import { boardModel } from "../models/boardModel"
 import { StatusCodes } from "http-status-codes"
-import { cloneDeep, update } from "lodash"
+import { cloneDeep } from "lodash"
+import { columnModel } from "../models/columnModel"
+import { cardModel } from "../models/cardModel"
+
 const createNew = async (data) => {
   try {
     const newBoard ={
@@ -20,6 +23,7 @@ const createNew = async (data) => {
 
 const getDetails = async (boardId) => {
   try {
+
     const board = await boardModel.getDetails(boardId)
     if(!board) throw new ApiError(StatusCodes.NOT_FOUND, 'Board not found')
     const boardClone = cloneDeep(board)
@@ -47,8 +51,33 @@ const updateBoard = async (boardId, reqBody) => {
   }
 }
 
+const moveCardDifferentColumn = async (reqBody) => {
+  try {
+    // Update cardOrderIds in source column
+    await columnModel.updateColumn(reqBody.sourceColumnId, {
+      cardOrderIds: reqBody.sourceCardOrderIds,
+      updatedAt: Date.now()
+    })
+    //Update cardOrderIds in target column
+    await columnModel.updateColumn(reqBody.targetColumnId, {
+      cardOrderIds: reqBody.targetCardOrderIds,
+      updatedAt: Date.now()
+    })
+    // Update ColumnId new card
+    await cardModel.updateCard(reqBody.currentCardId, {
+      columnId: reqBody.targetColumnId,
+      updatedAt: Date.now()
+    })
+
+    return { updatedResult: 'Success!' }
+  } catch (error) {
+    throw error
+  }
+}
+
 export const boardService = {
   createNew,
   getDetails,
-  updateBoard
+  updateBoard,
+  moveCardDifferentColumn
 }

@@ -6,6 +6,7 @@ import { columnModel } from "./columnModel";
 import { cardModel } from "./cardModel";
 // Define Colecction Schema
 const BOARD_COLLECTION_NAME = "boards";
+const INVALID_UPDATE_FIELDS = ['_id', 'createdAt']
 const BOARD_COLLECTION_SCHEMA = Joi.object({
   title: Joi.string().required().min(3).max(50).trim().strict(),
   slug: Joi.string().required().min(3).trim().strict(),
@@ -19,7 +20,7 @@ const BOARD_COLLECTION_SCHEMA = Joi.object({
   _deleted: Joi.boolean().default(false)
 })
 
-const INVALID_UPDATE_FIELDS = ['_id', 'createdAt']
+
 
 const validateCreateNew = async (data) => {
   try {
@@ -40,17 +41,18 @@ const createNew = async (data) =>{
 
 const getDetails = async (id) =>{
   try {
+    console.log("ID: ",id)
     const board = await GET_DB().collection(BOARD_COLLECTION_NAME).aggregate([
       {$match: {
         _id: new ObjectId(id),
         _deleted: false
       }},
-      { $lookup: { // To find from board to column which is in column collection
-        from: columnModel.COLUMN_COLLECTION_NAME, // From column collection
-        localField: '_id', // localField: columnOrderIds
-        foreignField: 'boardId', // foreignField: boardId
-        as: 'columns' // as columns
-      }},
+      { $lookup: {
+        from: columnModel.COLUMN_COLLECTION_NAME,
+        localField: '_id',
+        foreignField: 'boardId',
+        as: 'columns'
+      } },
       {
         $lookup: { 
         from: cardModel.CARD_COLLECTION_NAME, 
@@ -60,6 +62,7 @@ const getDetails = async (id) =>{
       },
     }
     ]).toArray() // Convert to array
+    console.log("Board123: ",board[0])
     return board[0] || null // return first element or null
 
   } catch (error) {
@@ -98,6 +101,9 @@ const updateBoard = async (boardId, updateData) => {
         delete updateData[key]
       }
     })
+    if(updateData.columnOrderIds){
+      updateData.columnOrderIds = updateData.columnOrderIds.map(_id => new ObjectId(_id))
+    }
     const result = await GET_DB().collection(BOARD_COLLECTION_NAME).findOneAndUpdate(
       {_id: new ObjectId(boardId)},
       {$set: updateData},
