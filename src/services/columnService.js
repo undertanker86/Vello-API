@@ -1,5 +1,8 @@
 import { columnModel } from "../models/columnModel"
 import { boardModel } from "../models/boardModel"
+import { cardModel } from "../models/cardModel"
+import ApiError from "../utils/ApiError"
+import { StatusCodes } from "http-status-codes"
 const createNew = async (data) => {
   try {
     console.log("Column information of services: ", data)
@@ -32,7 +35,29 @@ const updateColumn = async (columnId, reqBody) => {
   }
 }
 
+const deleteColumn = async (columnId) => {
+  try {
+
+    // Delete ColumnId in ColumnOrderIds
+    const column = await columnModel.findOneById(columnId)
+    if(!column){
+      throw new ApiError(StatusCodes.NOT_FOUND,"Column not found")
+    }
+    // console.log("Column: ",column)
+    await boardModel.pullColumnOrderIds(column)
+    // Delete Column
+    await columnModel.deleteOneById(columnId)
+    // Delete all cards in column
+    await cardModel.deleteManyByColumnId(columnId)
+    // return message
+    return {deleteColumn: "Delete column successfully"}
+  } catch (error) {
+    throw error
+  }
+}
+
 export const columnService = {
   createNew,
-  updateColumn
+  updateColumn,
+  deleteColumn
 }

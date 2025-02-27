@@ -14,7 +14,7 @@ const createNew = async (data) => {
     }
     const createdBoard = await boardModel.createNew(newBoard)
     const getNewBoard = await boardModel.findOneById(createdBoard.insertedId)
-    console.log(getNewBoard)
+    // console.log(getNewBoard)
     return getNewBoard
   } catch (error) {
     throw error

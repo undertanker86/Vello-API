@@ -43,8 +43,26 @@ const updateColumn = async (req, res, next) =>{
 
 }
 
+const deleteColumn = async (req, res, next) =>{
+  const correcCondition = Joi.object({
+    id: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
+  })
+
+  try{
+    await correcCondition.validateAsync(req.params, {abortEarly: false}) // abortEarly: false => return all error
+    next()
+  }
+  catch(error){
+    const errorMessages = new Error(error).message
+    const customeError = new ApiError(StatusCodes.UNPROCESSABLE_ENTITY, errorMessages) 
+    next(customeError)
+  }
+
+}
+
 
 export const columnValidation = {
   createNew,
-  updateColumn
+  updateColumn,
+  deleteColumn
 }

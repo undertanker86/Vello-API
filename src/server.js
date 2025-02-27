@@ -5,10 +5,20 @@ import { APIs } from './routes/v1';
 import cors from 'cors'
 import { corsOptions} from './config/cors';
 import { errorHandlingMiddleware } from './middlewares/errorHandlingMiddleware';
+import cookieParser from 'cookie-parser';
+
 const START_SERVER = () =>{
   const app = express();
-  app.use(cors(corsOptions));
 
+  // Fix cache from disk to memory
+  app.use((req, res, next) => {
+    res.set('Cache-Control', 'no-store')
+    next()
+  })
+
+  app.use(cors(corsOptions));
+  // Enable cookie parser
+  app.use(cookieParser());
   const hostname = 'localhost';
   const port = 8086;
   // Enable turn on req.body json data
