@@ -4,6 +4,8 @@ import { GET_DB } from "~/config/mongodb.js";
 import { OBJECT_ID_RULE, OBJECT_ID_RULE_MESSAGE } from "../utils/validators";
 import { columnModel } from "./columnModel";
 import { cardModel } from "./cardModel";
+import { pagingSkipValue } from "../utils/algorithms";
+
 // Define Colecction Schema
 const BOARD_COLLECTION_NAME = "boards";
 const INVALID_UPDATE_FIELDS = ['_id', 'createdAt']
@@ -14,7 +16,15 @@ const BOARD_COLLECTION_SCHEMA = Joi.object({
   type: Joi.string().valid('public', 'private').required(),
   columnOrderIds: Joi.array().items(
     Joi.string().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE)
+  ).default([]),
+  // Admins board
+  ownerIds: Joi.array().items(
+    Joi.string().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE)
   ).default([]),  
+  // Members board
+  memberIds: Joi.array().items(
+    Joi.string().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE)
+  ).default([]),    
   createdAt: Joi.date().timestamp('javascript').default(Date.now()),
   updatedAt: Joi.date().timestamp('javascript').default(null),
   _deleted: Joi.boolean().default(false)
@@ -29,24 +39,34 @@ const validateCreateNew = async (data) => {
     throw new Error(error)
   }
 }
-const createNew = async (data) =>{
+const createNew = async (userId, data) =>{
   try {
     const validData = await validateCreateNew(data)
-    const createdBoard = await GET_DB().collection(BOARD_COLLECTION_NAME).insertOne(validData)
+    const newBoardToAdd = {
+      ...validData,
+      ownerIds: [new ObjectId(userId)]
+    }
+    const createdBoard = await GET_DB().collection(BOARD_COLLECTION_NAME).insertOne(newBoardToAdd)
     return createdBoard 
   } catch (error) {
     throw new Error(error) // throw error to catch
   }
 }
 
-const getDetails = async (id) =>{
+const getDetails = async (userId, boardId) =>{
   try {
+    const queryConditions = [
+      { _id: new ObjectId(boardId)},
+      { _deleted: false },
+    { $or: [
+      { ownerIds: { $all: [new ObjectId(userId)] } },
+      { memberIds: { $all: [new ObjectId(userId)] }
+      }
+    ] }      
+    ]
     // console.log("ID: ",id)
     const board = await GET_DB().collection(BOARD_COLLECTION_NAME).aggregate([
-      {$match: {
-        _id: new ObjectId(id),
-        _deleted: false
-      }},
+      { $match: { $and: queryConditions } },
       { $lookup: {
         from: columnModel.COLUMN_COLLECTION_NAME,
         localField: '_id',
@@ -128,6 +148,43 @@ const pullColumnOrderIds = async (column) => {
     throw new Error(error)
   }
 }
+
+const getBoards = async (userId, page, itemsPerPage) => {
+  try {
+      const queryConditions = [
+        // Condition 1: Board not deleted
+        { _deleted: false },
+              // Condition 2: UserId do request must in owerIds or memberIds, use $all from mongodb
+      { $or: [
+        { ownerIds: { $all: [new ObjectId(userId)] } },
+        { memberIds: { $all: [new ObjectId(userId)] }
+        }
+      ] }      
+      ]
+
+      const query = await GET_DB().collection(BOARD_COLLECTION_NAME).aggregate([
+        { $match: { $and: queryConditions } },
+        { $sort: { title: 1 } }, // sort a-z (title)
+        { $facet: {
+          // T1: QUERY BOARDS
+          'queryBoards': [
+            { $skip: pagingSkipValue(page, itemsPerPage)}, // Skip quantity item return in previos pages.
+            { $limit: itemsPerPage }, // Limit quantity item return in 1 page.
+          ],
+          // T2: COUNT TOTAL BOARDS
+          'queryTotalBoards': [
+            { $count: 'totalBoards' }
+          ],
+        }}, // Handle multiple query
+      ], {collation: {locale: 'en'}}).toArray() // Convert to array
+
+    const res = query[0]
+    return {
+      boards: res.queryBoards || [],
+      totalBoards: res.queryTotalBoards[0]?.totalBoards || 0
+    }
+  } catch (error) { throw error }
+}
 export const boardModel = {
   BOARD_COLLECTION_NAME,
   BOARD_COLLECTION_SCHEMA,
@@ -136,6 +193,7 @@ export const boardModel = {
   getDetails,
   pushColumnOrderIds,
   updateBoard,
-  pullColumnOrderIds
+  pullColumnOrderIds,
+  getBoards
 }
 
