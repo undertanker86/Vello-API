@@ -5,7 +5,7 @@ import { OBJECT_ID_RULE, OBJECT_ID_RULE_MESSAGE } from "../utils/validators";
 import { columnModel } from "./columnModel";
 import { cardModel } from "./cardModel";
 import { pagingSkipValue } from "../utils/algorithms";
-
+import { userModel } from "./userModel";
 // Define Colecction Schema
 const BOARD_COLLECTION_NAME = "boards";
 const INVALID_UPDATE_FIELDS = ['_id', 'createdAt']
@@ -80,7 +80,23 @@ const getDetails = async (userId, boardId) =>{
         foreignField: 'boardId',
         as: 'cards' 
       },
-    }
+    },
+    { $lookup: {
+      from: userModel.USER_COLLECTION_NAME,
+      localField: 'ownerIds',
+      foreignField: '_id',
+      as: 'owners',
+      // The pipeline in lookup is to process one or more streams as needed.
+      // $project to specify some fields that you don't want to retrieve by assigning it a value of 0
+      pipeline: [{ $project: { 'password': 0, 'verifyToken': 0 } }]
+    } },
+    { $lookup: {
+      from: userModel.USER_COLLECTION_NAME,
+      localField: 'memberIds',
+      foreignField: '_id',
+      as: 'members',
+      pipeline: [{ $project: { 'password': 0, 'verifyToken': 0 } }]
+    } }
     ]).toArray() // Convert to array
     // console.log("Board123: ",board[0])
     return board[0] || null // return first element or null
