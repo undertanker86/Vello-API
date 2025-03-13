@@ -54,6 +54,7 @@ const findOneById = async (userId) => {
 const findOneByEmail = async (emailValue) => {
   try {
     const result = await GET_DB().collection(USER_COLLECTION_NAME).findOne({ email: emailValue })
+    console.log('result', result)
     return result
   } catch (error) { throw new Error(error) }
 }

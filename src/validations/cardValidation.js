@@ -8,6 +8,7 @@ const createNew = async (req, res, next) =>{
    boardId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
    title: Joi.string().required().min(3).max(50).trim().strict(),
    columnId: Joi.string().required().pattern(OBJECT_ID_RULE).message(OBJECT_ID_RULE_MESSAGE),
+   deadline: Joi.date().timestamp('javascript').optional(), 
 
   })
   try{

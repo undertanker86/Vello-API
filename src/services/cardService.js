@@ -31,6 +31,7 @@ const update = async (cardId, reqBody, cardCoverFile, userInfo) => {
       const uploadResult = await cloudinaryProvider.streamUpload(cardCoverFile.buffer, 'card-covers')
       updatedCard = await cardModel.updateCard(cardId, { cover: uploadResult.secure_url })
     } else if (updateData.commentToAdd) {
+  
       // Create comment data to add to the Database, need to add necessary fields
       const commentData = {
         ...updateData.commentToAdd,

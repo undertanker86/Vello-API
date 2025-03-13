@@ -56,7 +56,7 @@ const getBoards = async (req, res, next) => {
 
     const results = await boardService.getBoards(userId, page, itemsPerPage, queryFilters)
 
-    res.status(StatusCodes.OK).json(results)
+    res.status(StatusCodes.OK).json(results) 
   } catch (error) { next(error) }
 }
 

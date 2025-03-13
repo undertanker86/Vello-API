@@ -2,7 +2,7 @@ import Joi from 'joi'
 import { OBJECT_ID_RULE, OBJECT_ID_RULE_MESSAGE, EMAIL_RULE, EMAIL_RULE_MESSAGE } from '~/utils/validators'
 import { GET_DB } from "~/config/mongodb.js";
 import { ObjectId } from "mongodb";
-
+import { CARD_MEMBER_ACTIONS } from '~/utils/constants'
 // Define Collection (name & schema)
 const CARD_COLLECTION_NAME = 'cards'
 const INVALID_UPDATE_FIELDS = ['_id', 'createdAt']
@@ -32,6 +32,9 @@ const CARD_COLLECTION_SCHEMA = Joi.object({
 
   createdAt: Joi.date().timestamp('javascript').default(Date.now),
   updatedAt: Joi.date().timestamp('javascript').default(null),
+  // New deadline field
+  deadline: Joi.date().timestamp('javascript').optional().default(null), 
+
   _deleted: Joi.boolean().default(false)
 })
 const validateCreateNew = async (data) => {
@@ -47,7 +50,8 @@ const createNew = async (data) =>{
     const newCardCreate = {
       ...validData,
       boardId: new ObjectId(validData.boardId),
-      columnId: new ObjectId(validData.columnId)
+      columnId: new ObjectId(validData.columnId),
+      deadline: validData.deadline ? new Date(validData.deadline).getTime() : null,
     }
     const createdCard = await GET_DB().collection(CARD_COLLECTION_NAME).insertOne(newCardCreate)
     return createdCard 
@@ -74,9 +78,11 @@ const updateCard = async (cardId, updateData) => {
         delete updateData[key]
       }
     })
-
-    if(updateData.columnId){
-      updateData.columnId = new ObjectId(updateData.columnId)
+    if (updateData.deadline) {
+      updateData.deadline = new Date(updateData.deadline)
+    }
+    if (updateData.deadline) {
+      updateData.deadline = new Date(updateData.deadline).getTime(); // Convert to timestamp
     }
     const result = await GET_DB().collection(CARD_COLLECTION_NAME).findOneAndUpdate(
       {_id: new ObjectId(cardId)},
@@ -100,11 +106,48 @@ const deleteManyByColumnId = async (columnId) =>{
   }
 }
 
+const unshiftNewComment = async (cardId, commentData) => {
+  try {
+    const result = await GET_DB().collection(CARD_COLLECTION_NAME).findOneAndUpdate(
+      { _id: new ObjectId(cardId) },
+      { $push: { comments: { $each: [commentData], $position: 0 } } },
+      { returnDocument: 'after' }
+    )
+    return result
+  } catch (error) { throw new Error(error) }
+}
+
+const updateMembers = async (cardId, incomingMemberInfo) => {
+  try {
+    // Creates an updateCondition variable that is initially empty.
+    let updateCondition = {}
+    if (incomingMemberInfo.action === CARD_MEMBER_ACTIONS.ADD) {
+      updateCondition = { $push: { memberIds: new ObjectId(incomingMemberInfo.userId) } }
+    }
+
+    if (incomingMemberInfo.action === CARD_MEMBER_ACTIONS.REMOVE) {
+     
+      updateCondition = { $pull: { memberIds: new ObjectId(incomingMemberInfo.userId) } }
+    }
+
+    const result = await GET_DB().collection(CARD_COLLECTION_NAME).findOneAndUpdate(
+      { _id: new ObjectId(cardId) },
+      updateCondition,
+      { returnDocument: 'after' }
+    )
+    return result
+  } catch (error) { throw new Error(error) }
+}
+
+
+
 export const cardModel = {
   CARD_COLLECTION_NAME,
   CARD_COLLECTION_SCHEMA,
   createNew,
   findOneById,
   updateCard,
-  deleteManyByColumnId
+  deleteManyByColumnId,
+  unshiftNewComment,
+  updateMembers,
 }

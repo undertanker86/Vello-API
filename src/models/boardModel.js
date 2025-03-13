@@ -27,6 +27,10 @@ const BOARD_COLLECTION_SCHEMA = Joi.object({
   ).default([]),    
   createdAt: Joi.date().timestamp('javascript').default(Date.now()),
   updatedAt: Joi.date().timestamp('javascript').default(null),
+  // Deadline of card
+  deadline: Joi.date().timestamp('javascript').optional(),  
+  isExpired: Joi.boolean().default(false),
+
   _deleted: Joi.boolean().default(false)
 })
 
@@ -98,7 +102,7 @@ const getDetails = async (userId, boardId) =>{
       pipeline: [{ $project: { 'password': 0, 'verifyToken': 0 } }]
     } }
     ]).toArray() // Convert to array
-    // console.log("Board123: ",board[0])
+    // console.log("Board: ",board[0])
     return board[0] || null // return first element or null
 
   } catch (error) {
@@ -165,7 +169,7 @@ const pullColumnOrderIds = async (column) => {
   }
 }
 
-const getBoards = async (userId, page, itemsPerPage) => {
+const getBoards = async (userId, page, itemsPerPage, queryFilters) => {
   try {
       const queryConditions = [
         // Condition 1: Board not deleted
@@ -177,6 +181,21 @@ const getBoards = async (userId, page, itemsPerPage) => {
         }
       ] }      
       ]
+      // Handle queryFilter for each search board case, example with title
+    if(queryFilters){
+      Object.keys(queryFilters).forEach(key => {
+        // queryFilters[key] example queryFilters[title] in FE push q[title]
+       // Case different Lower and Upper
+      //  queryConditions.push({
+      //     [key]: { $regex: queryFilters[key] }
+      //  })
+       // Case not different
+       queryConditions.push({
+          [key]: { $regex:  new RegExp(queryFilters[key], 'i') }
+       })
+      })
+    }
+    
 
       const query = await GET_DB().collection(BOARD_COLLECTION_NAME).aggregate([
         { $match: { $and: queryConditions } },
@@ -195,11 +214,26 @@ const getBoards = async (userId, page, itemsPerPage) => {
       ], {collation: {locale: 'en'}}).toArray() // Convert to array
 
     const res = query[0]
+   
     return {
       boards: res.queryBoards || [],
       totalBoards: res.queryTotalBoards[0]?.totalBoards || 0
     }
   } catch (error) { throw error }
+}
+
+
+const pushMemberIds = async (boardId, userId) => {
+  try {
+    const result = await GET_DB().collection(BOARD_COLLECTION_NAME).findOneAndUpdate(
+      {_id: new ObjectId(boardId)},
+      {$push: {memberIds: new ObjectId(userId)}},
+      {returnDocument: 'after'}
+    )
+    return result // findOneAndUpdate return the document after update
+  } catch (error) {
+    throw new Error(error)
+  }
 }
 export const boardModel = {
   BOARD_COLLECTION_NAME,
@@ -210,6 +244,7 @@ export const boardModel = {
   pushColumnOrderIds,
   updateBoard,
   pullColumnOrderIds,
-  getBoards
+  getBoards,
+  pushMemberIds
 }
 

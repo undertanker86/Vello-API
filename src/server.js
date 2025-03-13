@@ -6,6 +6,9 @@ import cors from 'cors'
 import { corsOptions} from './config/cors';
 import { errorHandlingMiddleware } from './middlewares/errorHandlingMiddleware';
 import cookieParser from 'cookie-parser';
+import socketIo from 'socket.io';
+import http from 'http';
+import { inviteUserToBoardSocket } from './sockets/inviteUserToBoardSocket';
 
 const START_SERVER = () =>{
   const app = express();
@@ -29,7 +32,19 @@ const START_SERVER = () =>{
   // Middleware to handle errors
   app.use(errorHandlingMiddleware);
 
-  app.listen(port, hostname, () =>{
+  // Create a server instance to wrap app of express  to do real-time with socket.io
+  const server = http.createServer(app);
+
+  // Create a socket.io instance with server and cors
+  const io = socketIo(server, {
+    cors: corsOptions
+  });
+  io.on('connection', (socket) => {
+    console.log('A user connected');
+    inviteUserToBoardSocket(socket);
+  })
+  // Using server.listen instead of app.listen because server that include express app and config socket.io
+  server.listen(port, hostname, () =>{
     console.log(`Server running at http://${hostname}:${port}/`)
   })
 
